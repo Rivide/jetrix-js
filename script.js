@@ -42,11 +42,13 @@ class Enemy {
   x;
   y;
   health;
+  shootTimer;
 
-  constructor(x, y, health) {
+  constructor(x, y, health, shootTimer) {
     this.x = x;
     this.y = y;
     this.health = health;
+    this.shootTimer = shootTimer;
   }
 }
 
@@ -65,9 +67,11 @@ const ctx = canvas.getContext('2d')
 
 let x
 let y
+let playerHealth = 5
 
 let enemies = []
 let playerBullets = []
+let enemyBullets = []
 
 let spawnEnemyTimer = new Timer(2000)
 let playerShootTimer = new Timer(600)
@@ -111,12 +115,16 @@ function update(time) {
     bullet.y -= BULLET_SPEED * deltaTime
   }
 
+  for (let bullet of enemyBullets) {
+    bullet.y += BULLET_SPEED * deltaTime
+  }
+
   for (let enemy of enemies) {
     enemy.y += ENEMY_SPEED * deltaTime
   }
 
   let deletedEnemyIndices = new Set()
-  let deletedBulletIndices = new Set()
+  let deletedPlayerBulletIndices = new Set()
   for (let [enemyIndex, enemy] of enemies.entries()) {
     for (let [bulletIndex, bullet] of playerBullets.entries()) {
       if (
@@ -129,7 +137,7 @@ function update(time) {
           (bullet.y + BULLET_HEIGHT > enemy.y && bullet.y + BULLET_HEIGHT < enemy.y + ENEMY_HEIGHT)
         )
       ) {
-        deletedBulletIndices.add(bulletIndex)
+        deletedPlayerBulletIndices.add(bulletIndex)
         if (!deletedEnemyIndices.has(enemyIndex)) {
           enemy.health -= 1
           if (enemy.health <= 0) {
@@ -139,7 +147,47 @@ function update(time) {
       }
     }
   }
-  for (let bulletIndex of deletedBulletIndices.keys()) {
+
+  let deletedEnemyBulletIndices = new Set()
+  function checkCollision(x1, w1, x2, w1, y1, h1, y2, h2) {
+    return (
+      (
+        (x1 > x2 && x1 < x2 + w2) ||
+        (x1 + w1 > x2 && x1 + w1 < x2 + w2)
+      ) &&
+      (
+        (y1 > y2 && y1 < y2 + h2) ||
+        (y1 + h1 > y2 && y1 + h1 < y2 + h2)
+      )
+    )
+  }
+
+  for (let [bulletIndex, bullet] of enemyBullets.entries()) {
+    if (checkCollision(bullet.x, BULLET_WIDTH, x, PLAYER_WIDTH, bullet.y, BULLET_HEIGHT, y, PLAYER_HEIGHT)) {
+      deletedEnemyBulletIndices.add(bulletIndex)
+      playerHealth -= 1
+    }
+  }
+
+  for (let [bulletIndex, bullet] of playerBullets.entries()) {
+    if (bullet.y > screenHeight) {
+      deletedPlayerBulletIndices.add(bulletIndex)
+    }
+  }
+
+  // for (let [bulletIndex, bullet] of enemyBullets.entries()) {
+  //   if (bullet.y + BULLET_HEIGHT < 0) {
+  //     deletedPlayerBulletIndices.add(bulletIndex)
+  //   }
+  // }
+
+  for (let [enemyIndex, enemy] of enemies.entries()) {
+    if (enemy.y > screenHeight) {
+      deletedEnemyIndices.add(enemyIndex)
+    }
+  }
+
+  for (let bulletIndex of deletedPlayerBulletIndices.keys()) {
     playerBullets.splice(bulletIndex, 1)
   }
   for (let enemyIndex of deletedEnemyIndices.keys()) {
@@ -147,11 +195,19 @@ function update(time) {
   }
 
   playerShootTimer.update(deltaTime, () => playerShoot(x, y))
+  for (let enemy of enemies) {
+    enemy.shootTimer.update(deltaTime, () => enemyShoot(enemy.x, enemy.y))
+  }
   spawnEnemyTimer.update(deltaTime, spawnEnemy)
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
 
   for (let bullet of playerBullets) {
+    ctx.fillStyle = "white"
+    ctx.fillRect(canvasUnits(bullet.x), canvasUnits(bullet.y), canvasUnits(BULLET_WIDTH), canvasUnits(BULLET_HEIGHT))
+  }
+
+  for (let bullet of enemyBullets) {
     ctx.fillStyle = "white"
     ctx.fillRect(canvasUnits(bullet.x), canvasUnits(bullet.y), canvasUnits(BULLET_WIDTH), canvasUnits(BULLET_HEIGHT))
   }
@@ -227,7 +283,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 
 function spawnEnemy() {
   if (Math.random() < 0.5) {
-    enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3))
+    enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000)))
   }
 }
 
@@ -235,6 +291,13 @@ function playerShoot(playerX, playerY) {
   playerBullets.push(new Bullet(
     playerX + PLAYER_WIDTH / 2 - BULLET_WIDTH / 2,
     playerY - BULLET_HEIGHT
+  ))
+}
+
+function enemyShoot(enemyX, enemyY) {
+  enemyBullets.push(new Bullet(
+    enemyX + ENEMY_WIDTH / 2 - BULLET_WIDTH / 2,
+    enemyY + ENEMY_HEIGHT
   ))
 }
 
