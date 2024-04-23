@@ -1,5 +1,3 @@
-console.log("WOOT");
-
 const CANVAS_WIDTH = 640
 const CANVAS_HEIGHT = 480
 
@@ -88,9 +86,15 @@ function init() {
   updateCanvasDimensions()
   window.addEventListener('resize', updateCanvasDimensions)
   window.addEventListener('mousemove', onMouseMove)
+  // Need passive: false for some Chrome-specific thing?
+  // https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
+  window.addEventListener('touchstart', onTouchStart, {passive: false})
+  window.addEventListener('touchmove', onTouchMove, {passive: false})
+  window.addEventListener('touchend', onTouchEnd, {passive: false})
+  window.addEventListener('touchcancel', onTouchEnd, {passive: false})
 
-  x = screenWidth / 2
-  y = screenHeight / 2
+  x = screenWidth / 2 - PLAYER_WIDTH / 2
+  y = screenHeight / 2 - PLAYER_HEIGHT / 2
 
   requestAnimationFrame(update)
 }
@@ -101,8 +105,6 @@ function update(time) {
   let deltaTime = 0
   if (prevTime != 0) {
     deltaTime = time - prevTime
-  } else {
-    console.log("time here:", time)
   }
 
   for (let bullet of playerBullets) {
@@ -152,7 +154,6 @@ function update(time) {
   for (let bullet of playerBullets) {
     ctx.fillStyle = "white"
     ctx.fillRect(canvasUnits(bullet.x), canvasUnits(bullet.y), canvasUnits(BULLET_WIDTH), canvasUnits(BULLET_HEIGHT))
-    console.log("EPIC")
   }
 
   for (let enemy of enemies) {
@@ -170,6 +171,58 @@ function update(time) {
 function onMouseMove(event) {
   x = event.x / canvas.clientWidth * screenWidth - PLAYER_WIDTH / 2
   y = event.y / canvas.clientHeight * screenHeight - PLAYER_HEIGHT / 2
+}
+
+const ongoingTouches = [];
+
+function onTouchStart(event) {
+  event.preventDefault();
+  const touches = event.changedTouches
+  for (let i = 0; i < touches.length; i++) {
+    ongoingTouches.push(copyTouch(touches[i]))
+  }
+}
+
+function onTouchMove(event) {
+  event.preventDefault();
+  const touches = event.changedTouches
+  for (let i = 0; i < touches.length; i++) {
+    let touch = touches[i]
+    const ongoingTouchIndex = ongoingTouches.findIndex(ongoingTouch => ongoingTouch.identifier === touch.identifier)
+    if (ongoingTouchIndex !== -1) {
+      const ongoingTouch = ongoingTouches[ongoingTouchIndex]
+      x += (touch.clientX - ongoingTouch.clientX) / canvas.clientWidth * screenWidth
+      y += (touch.clientY - ongoingTouch.clientY) / canvas.clientHeight * screenHeight
+      ongoingTouches.splice(ongoingTouchIndex, 1, copyTouch(touch))
+    }
+  }
+}
+
+function onTouchEnd(event) {
+  event.preventDefault()
+  const touches = event.changedTouches
+  for (let i = 0; i < touches.length; i++) {
+    const touch = touches[i]
+    const ongoingTouchResult = findOngoingTouch(touch.identifier)
+    if (ongoingTouchResult == null) {
+      continue;
+    }
+    const [ongoingTouchIndex, ongoingTouch] = ongoingTouchResult
+    ongoingTouches.splice(ongoingTouchIndex, 1)
+  }
+}
+
+function findOngoingTouch(identifier) {
+  for (let [i, touch] of ongoingTouches.entries()) {
+    if (touch.identifier === identifier) {
+      return [i, touch]
+    }
+  }
+  return null
+}
+
+function copyTouch({ identifier, pageX, pageY }) {
+  return { identifier, pageX, pageY };
 }
 
 function spawnEnemy() {
