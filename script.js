@@ -221,8 +221,8 @@ function findOngoingTouch(identifier) {
   return null
 }
 
-function copyTouch({ identifier, pageX, pageY }) {
-  return { identifier, pageX, pageY };
+function copyTouch({ identifier, clientX, clientY }) {
+  return { identifier, clientX, clientY };
 }
 
 function spawnEnemy() {
