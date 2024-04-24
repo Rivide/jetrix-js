@@ -1,19 +1,31 @@
-const CANVAS_WIDTH = 640
-const CANVAS_HEIGHT = 480
+// const CANVAS_WIDTH = 640
+// const CANVAS_HEIGHT = 480
 
 let screenWidth = 100
 let screenHeight
 
 const PLAYER_WIDTH = 10
 const PLAYER_HEIGHT = 10
+const PLAYER_MAX_HEALTH = 5
 
 const ENEMY_WIDTH = 10
 const ENEMY_HEIGHT = 10
 const ENEMY_SPEED = 1/100
+const ENEMY_FIRE_RATE = 2/3
 
-const BULLET_WIDTH = 5
-const BULLET_HEIGHT = 5
+const BULLET_WIDTH = 2
+const BULLET_HEIGHT = 2
 const BULLET_SPEED = 2/100
+
+const HEART_WIDTH = 2
+const HEART_HEIGHT = 2
+const HEART_COLOR = "crimson"
+const HEART_SPEED = 1/100
+
+const COIN_WIDTH = 2
+const COIN_HEIGHT = 2
+const COIN_COLOR = "gold"
+const COIN_SPEED = 1/100
 
 class Timer {
   duration;
@@ -52,6 +64,26 @@ class Enemy {
   }
 }
 
+class Heart {
+  x;
+  y;
+
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class Coin {
+  x;
+  y;
+
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
 class Bullet {
   x;
   y;
@@ -67,9 +99,12 @@ const ctx = canvas.getContext('2d')
 
 let x
 let y
-let playerHealth = 5
+let playerHealth = PLAYER_MAX_HEALTH
+let playerCoins = 0
 
 let enemies = []
+let hearts = []
+let coins = []
 let playerBullets = []
 let enemyBullets = []
 
@@ -89,7 +124,7 @@ function init() {
   // canvas.height = CANVAS_HEIGHT
   updateCanvasDimensions()
   window.addEventListener('resize', updateCanvasDimensions)
-  window.addEventListener('mousemove', onMouseMove)
+  canvas.addEventListener('mousemove', onMouseMove)
   // Need passive: false for some Chrome-specific thing?
   // https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
   window.addEventListener('touchstart', onTouchStart, {passive: false})
@@ -123,25 +158,47 @@ function update(time) {
     enemy.y += ENEMY_SPEED * deltaTime
   }
 
+  for (let heart of hearts) {
+    heart.y += HEART_SPEED * deltaTime
+  }
+  for (let coin of coins) {
+    coin.y += COIN_SPEED * deltaTime
+  }
+
+  let deletedHeartIndices = new Set()
+  for (let [heartIndex, heart] of hearts.entries()) {
+    if (checkCollision(heart.x, HEART_WIDTH, x, PLAYER_WIDTH, heart.y, HEART_HEIGHT, y, PLAYER_HEIGHT)) {
+      if (playerHealth < PLAYER_MAX_HEALTH) {
+        playerHealth += 1
+        deletedHeartIndices.add(heartIndex)
+      }
+    }
+  }
+
+  let deletedCoinIndices = new Set()
+  for (let [coinIndex, coin] of coins.entries()) {
+    if (checkCollision(coin.x, COIN_WIDTH, x, PLAYER_WIDTH, coin.y, COIN_HEIGHT, y, PLAYER_HEIGHT)) {
+      playerCoins += 1
+      deletedCoinIndices.add(coinIndex)
+    }
+  }
+
   let deletedEnemyIndices = new Set()
   let deletedPlayerBulletIndices = new Set()
   for (let [enemyIndex, enemy] of enemies.entries()) {
     for (let [bulletIndex, bullet] of playerBullets.entries()) {
-      if (
-        (
-          (bullet.x > enemy.x && bullet.x < enemy.x + ENEMY_WIDTH) ||
-          (bullet.x + BULLET_WIDTH > enemy.x && bullet.x + BULLET_WIDTH < enemy.x + ENEMY_WIDTH)
-        ) &&
-        (
-          (bullet.y > enemy.y && bullet.y < enemy.y + ENEMY_HEIGHT) ||
-          (bullet.y + BULLET_HEIGHT > enemy.y && bullet.y + BULLET_HEIGHT < enemy.y + ENEMY_HEIGHT)
-        )
-      ) {
+      
+      if (checkCollision(bullet.x, BULLET_WIDTH, enemy.x, ENEMY_WIDTH, bullet.y, BULLET_HEIGHT, enemy.y, ENEMY_HEIGHT)) {
         deletedPlayerBulletIndices.add(bulletIndex)
         if (!deletedEnemyIndices.has(enemyIndex)) {
           enemy.health -= 1
           if (enemy.health <= 0) {
             deletedEnemyIndices.add(enemyIndex)
+            if (Math.random() < 0.25) {
+              hearts.push(new Heart(enemy.x + ENEMY_WIDTH / 2, enemy.y + ENEMY_HEIGHT / 2))
+            } else if (Math.random() < 0.5) {
+              coins.push(new Coin(enemy.x + ENEMY_WIDTH / 2, enemy.y + ENEMY_HEIGHT / 2))
+            }
           }
         }
       }
@@ -149,37 +206,24 @@ function update(time) {
   }
 
   let deletedEnemyBulletIndices = new Set()
-  function checkCollision(x1, w1, x2, w1, y1, h1, y2, h2) {
-    return (
-      (
-        (x1 > x2 && x1 < x2 + w2) ||
-        (x1 + w1 > x2 && x1 + w1 < x2 + w2)
-      ) &&
-      (
-        (y1 > y2 && y1 < y2 + h2) ||
-        (y1 + h1 > y2 && y1 + h1 < y2 + h2)
-      )
-    )
-  }
-
   for (let [bulletIndex, bullet] of enemyBullets.entries()) {
     if (checkCollision(bullet.x, BULLET_WIDTH, x, PLAYER_WIDTH, bullet.y, BULLET_HEIGHT, y, PLAYER_HEIGHT)) {
       deletedEnemyBulletIndices.add(bulletIndex)
-      playerHealth -= 1
+      playerHealth = Math.max(0, playerHealth - 1)
     }
   }
 
   for (let [bulletIndex, bullet] of playerBullets.entries()) {
-    if (bullet.y > screenHeight) {
+    if (bullet.y + BULLET_HEIGHT < 0) {
       deletedPlayerBulletIndices.add(bulletIndex)
     }
   }
 
-  // for (let [bulletIndex, bullet] of enemyBullets.entries()) {
-  //   if (bullet.y + BULLET_HEIGHT < 0) {
-  //     deletedPlayerBulletIndices.add(bulletIndex)
-  //   }
-  // }
+  for (let [bulletIndex, bullet] of enemyBullets.entries()) {
+    if (bullet.y > screenHeight) {
+      deletedEnemyBulletIndices.add(bulletIndex)
+    }
+  }
 
   for (let [enemyIndex, enemy] of enemies.entries()) {
     if (enemy.y > screenHeight) {
@@ -187,20 +231,55 @@ function update(time) {
     }
   }
 
+  for (let [heartIndex, heart] of hearts.entries()) {
+    if (heart.y > screenHeight) {
+      deletedHeartIndices.add(heartIndex)
+    }
+  }
+
+  for (let [coinIndex, coin] of coins.entries()) {
+    if (coin.y > screenHeight) {
+      deletedCoinIndices.add(coinIndex)
+    }
+  }
+
   for (let bulletIndex of deletedPlayerBulletIndices.keys()) {
     playerBullets.splice(bulletIndex, 1)
+  }
+  for (let bulletIndex of deletedEnemyBulletIndices.keys()) {
+    enemyBullets.splice(bulletIndex, 1)
   }
   for (let enemyIndex of deletedEnemyIndices.keys()) {
     enemies.splice(enemyIndex, 1)
   }
+  for (let heartIndex of deletedHeartIndices.keys()) {
+    hearts.splice(heartIndex, 1)
+  }
+  for (let coinIndex of deletedCoinIndices.keys()) {
+    coins.splice(coinIndex, 1)
+  }
 
-  playerShootTimer.update(deltaTime, () => playerShoot(x, y))
+  if (playerHealth > 0) {
+    playerShootTimer.update(deltaTime, () => playerShoot(x, y))
+  }
   for (let enemy of enemies) {
     enemy.shootTimer.update(deltaTime, () => enemyShoot(enemy.x, enemy.y))
   }
-  spawnEnemyTimer.update(deltaTime, spawnEnemy)
+  if (playerHealth > 0) {
+    spawnEnemyTimer.update(deltaTime, spawnEnemy)
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+  for (let heart of hearts) {
+    ctx.fillStyle = HEART_COLOR
+    ctx.fillRect(canvasUnits(heart.x), canvasUnits(heart.y), canvasUnits(HEART_WIDTH), canvasUnits(HEART_HEIGHT))
+  }
+
+  for (let coin of coins) {
+    ctx.fillStyle = COIN_COLOR
+    ctx.fillRect(canvasUnits(coin.x), canvasUnits(coin.y), canvasUnits(COIN_WIDTH), canvasUnits(COIN_HEIGHT))
+  }
 
   for (let bullet of playerBullets) {
     ctx.fillStyle = "white"
@@ -217,16 +296,21 @@ function update(time) {
     ctx.fillRect(canvasUnits(enemy.x), canvasUnits(enemy.y), canvasUnits(ENEMY_WIDTH), canvasUnits(ENEMY_HEIGHT))
   }
 
-  ctx.fillStyle = "white"
-  ctx.fillRect(canvasUnits(x), canvasUnits(y), canvasUnits(PLAYER_WIDTH), canvasUnits(PLAYER_HEIGHT))
+  if (playerHealth > 0) {
+    ctx.fillStyle = "white"
+    ctx.fillRect(canvasUnits(x), canvasUnits(y), canvasUnits(PLAYER_WIDTH), canvasUnits(PLAYER_HEIGHT))
+  }
+
+  ctx.fillText("Health: " + playerHealth, 2, 10)
+  ctx.fillText("Coins: " + playerCoins, 2, 20)
   
   prevTime = time
   requestAnimationFrame(update)
 }
 
 function onMouseMove(event) {
-  x = event.x / canvas.clientWidth * screenWidth - PLAYER_WIDTH / 2
-  y = event.y / canvas.clientHeight * screenHeight - PLAYER_HEIGHT / 2
+  x = event.offsetX / canvas.clientWidth * screenWidth - PLAYER_WIDTH / 2
+  y = event.offsetY / canvas.clientHeight * screenHeight - PLAYER_HEIGHT / 2
 }
 
 const ongoingTouches = [];
@@ -283,7 +367,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 
 function spawnEnemy() {
   if (Math.random() < 0.5) {
-    enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000)))
+    enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
   }
 }
 
@@ -299,6 +383,19 @@ function enemyShoot(enemyX, enemyY) {
     enemyX + ENEMY_WIDTH / 2 - BULLET_WIDTH / 2,
     enemyY + ENEMY_HEIGHT
   ))
+}
+
+function checkCollision(x1, w1, x2, w2, y1, h1, y2, h2) {
+  return (
+    (
+      (x1 > x2 && x1 < x2 + w2) ||
+      (x1 + w1 > x2 && x1 + w1 < x2 + w2)
+    ) &&
+    (
+      (y1 > y2 && y1 < y2 + h2) ||
+      (y1 + h1 > y2 && y1 + h1 < y2 + h2)
+    )
+  )
 }
 
 function canvasUnits(worldUnits) {
