@@ -13,6 +13,15 @@ const ENEMY_HEIGHT = 10
 const ENEMY_SPEED = 1/100
 const ENEMY_FIRE_RATE = 2/3
 
+const BOSS_WIDTH = 20
+const BOSS_HEIGHT = 20
+const BOSS_SPEED = 1/200
+const BOSS_MAX_HEALTH = 10
+const BOSS_FIRE_RATE = 3
+const BOSS_SHOOT_POSITION = 20
+
+const BOSS_SPAWN_SCORE = 5
+
 const BULLET_WIDTH = 2
 const BULLET_HEIGHT = 2
 const BULLET_SPEED = 2/100
@@ -64,6 +73,20 @@ class Enemy {
   }
 }
 
+class Boss {
+  x;
+  y;
+  health;
+  state;
+
+  constructor(x, y, health) {
+    this.x = x;
+    this.y = y;
+    this.health = health;
+    this.state = "stationary"
+  }
+}
+
 class Heart {
   x;
   y;
@@ -101,6 +124,10 @@ let x
 let y
 let playerHealth = PLAYER_MAX_HEALTH
 let playerCoins = 0
+let score = 0
+// TODO: remove
+score = 5
+let bossScoreMarker = 0
 
 let enemies = []
 let hearts = []
@@ -108,7 +135,12 @@ let coins = []
 let playerBullets = []
 let enemyBullets = []
 
-let spawnEnemyTimer = new Timer(2000)
+let boss = null
+let numBossSpawns = 0
+let bossSpawnTimer = null
+let bossShootTimer = null
+
+let spawnEnemyTimer = new Timer(1000 + Math.random() * 2000)
 let playerShootTimer = new Timer(600)
 
 function updateCanvasDimensions() {
@@ -158,6 +190,12 @@ function update(time) {
     enemy.y += ENEMY_SPEED * deltaTime
   }
 
+  if (boss != null) {
+    if (boss.y < BOSS_SHOOT_POSITION) {
+      boss.y = Math.min(BOSS_SHOOT_POSITION, boss.y + BOSS_SPEED * deltaTime)
+    }
+  }
+
   for (let heart of hearts) {
     heart.y += HEART_SPEED * deltaTime
   }
@@ -185,20 +223,34 @@ function update(time) {
 
   let deletedEnemyIndices = new Set()
   let deletedPlayerBulletIndices = new Set()
-  for (let [enemyIndex, enemy] of enemies.entries()) {
-    for (let [bulletIndex, bullet] of playerBullets.entries()) {
+  let didBossDie = false
+  for (let [bulletIndex, bullet] of playerBullets.entries()) {
+    for (let [enemyIndex, enemy] of enemies.entries()) {
       
       if (checkCollision(bullet.x, BULLET_WIDTH, enemy.x, ENEMY_WIDTH, bullet.y, BULLET_HEIGHT, enemy.y, ENEMY_HEIGHT)) {
         deletedPlayerBulletIndices.add(bulletIndex)
         if (!deletedEnemyIndices.has(enemyIndex)) {
           enemy.health -= 1
-          if (enemy.health <= 0) {
+          if (enemy.health === 0) {
             deletedEnemyIndices.add(enemyIndex)
-            if (Math.random() < 0.25) {
+            score += 1
+            let r = Math.random()
+            if (r < 0.25) {
               hearts.push(new Heart(enemy.x + ENEMY_WIDTH / 2, enemy.y + ENEMY_HEIGHT / 2))
-            } else if (Math.random() < 0.5) {
+            } else if (r < 0.5) {
               coins.push(new Coin(enemy.x + ENEMY_WIDTH / 2, enemy.y + ENEMY_HEIGHT / 2))
             }
+          }
+        }
+      }
+    }
+    if (boss != null) {
+      if (checkCollision(bullet.x, BULLET_WIDTH, boss.x, BOSS_WIDTH, bullet.y, BULLET_HEIGHT, boss.y, BOSS_HEIGHT)) {
+        deletedPlayerBulletIndices.add(bulletIndex)
+        if (!didBossDie) {
+          boss.health -= 1
+          if (boss.health === 0) {
+            didBossDie = true
           }
         }
       }
@@ -258,6 +310,10 @@ function update(time) {
   for (let coinIndex of deletedCoinIndices.keys()) {
     coins.splice(coinIndex, 1)
   }
+  if (didBossDie) {
+    boss = null
+    didBossDie = false
+  }
 
   if (playerHealth > 0) {
     playerShootTimer.update(deltaTime, () => playerShoot(x, y))
@@ -266,7 +322,43 @@ function update(time) {
     enemy.shootTimer.update(deltaTime, () => enemyShoot(enemy.x, enemy.y))
   }
   if (playerHealth > 0) {
-    spawnEnemyTimer.update(deltaTime, spawnEnemy)
+    spawnEnemyTimer.update(deltaTime, () => {
+      spawnEnemy()
+      spawnEnemyTimer = new Timer(1000 + Math.random() * 4000)
+    })
+  }
+
+  if (boss != null && boss.y === BOSS_SHOOT_POSITION && bossShootTimer === null) {
+    bossShootTimer = new Timer(1000 / BOSS_FIRE_RATE)
+  }
+
+  if (boss != null && bossShootTimer != null) {
+    bossShootTimer.update(deltaTime, () => {
+      let bulletX = boss.x + BOSS_WIDTH / 8 - BULLET_WIDTH / 2
+      let range = BOSS_WIDTH * 3 / 4
+
+      let r = Math.random()
+      if (r < 0.25) {
+        bulletX += range * 1 / 3
+      } else if (r < 0.5) {
+        bulletX += range * 2 / 3
+      } else if (r < 0.75) {
+        bulletX += range
+      }
+      
+      enemyBullets.push(new Bullet(bulletX, boss.y + BOSS_HEIGHT))
+    })
+  }
+
+  if (boss == null && bossSpawnTimer == null && (score - bossScoreMarker) >= (numBossSpawns + 1) * BOSS_SPAWN_SCORE) {
+    bossSpawnTimer = new Timer(Math.random() * 10000)
+  }
+  if (bossSpawnTimer != null) {
+    bossSpawnTimer.update(deltaTime, () => {
+      boss = new Boss(screenWidth / 2 - BOSS_WIDTH / 2, -BOSS_HEIGHT, BOSS_MAX_HEALTH)
+      bossSpawnTimer = null
+      numBossSpawns++
+    })
   }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -301,8 +393,14 @@ function update(time) {
     ctx.fillRect(canvasUnits(x), canvasUnits(y), canvasUnits(PLAYER_WIDTH), canvasUnits(PLAYER_HEIGHT))
   }
 
-  ctx.fillText("Health: " + playerHealth, 2, 10)
-  ctx.fillText("Coins: " + playerCoins, 2, 20)
+  if (boss != null) {
+    ctx.fillStyle = "white"
+    ctx.fillRect(canvasUnits(boss.x), canvasUnits(boss.y), canvasUnits(BOSS_WIDTH), canvasUnits(BOSS_HEIGHT))
+  }
+
+  ctx.fillText("Score: " + score, 2, 10)
+  ctx.fillText("Health: " + playerHealth, 2, 20)
+  ctx.fillText("Coins: " + playerCoins, 2, 30)
   
   prevTime = time
   requestAnimationFrame(update)
@@ -366,9 +464,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 }
 
 function spawnEnemy() {
-  if (Math.random() < 0.5) {
-    enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
-  }
+  // enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
 }
 
 function playerShoot(playerX, playerY) {
