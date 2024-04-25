@@ -126,7 +126,7 @@ let playerHealth = PLAYER_MAX_HEALTH
 let playerCoins = 0
 let score = 0
 // TODO: remove
-score = 5
+// score = 5
 let bossScoreMarker = 0
 
 let enemies = []
@@ -464,7 +464,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 }
 
 function spawnEnemy() {
-  // enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
+  enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
 }
 
 function playerShoot(playerX, playerY) {
