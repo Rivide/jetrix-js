@@ -143,10 +143,45 @@ let bossShootTimer = null
 let spawnEnemyTimer = new Timer(1000 + Math.random() * 2000)
 let playerShootTimer = new Timer(600)
 
+function canvasScale() {
+  if (canvas.width * 1.6 < canvas.height) {
+    return canvas.width * 1.6 / 100
+  } else {
+    return canvas.height / 100
+  }
+}
+
 function updateCanvasDimensions() {
-  canvas.width = canvas.clientWidth
-  canvas.height = canvas.clientHeight
+  // console.log(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight)
+  let canvasWidth
+  let canvasHeight
+  if (window.innerHeight > window.innerWidth) {
+    canvasWidth = window.innerWidth
+    canvasHeight = Math.min(canvasWidth * 3, window.innerHeight)
+  } else {
+    canvasHeight = window.innerHeight
+    canvasWidth = Math.min(Math.floor(canvasHeight * 1.6), window.innerWidth)
+  }
+  canvas.style.width = canvasWidth + "px"
+  canvas.style.height = canvasHeight + "px"
+  canvas.width = canvasWidth
+  canvas.height = canvasHeight
+  // if (canvas.width * 1.6 < canvas.height) {
+  //   screenHeight = canvas.height * 1.6 / canvas.width * screenWidth
+  //   screenWidth = 100
+  // } else {
+  //   screenHeight = 100
+  //   screenWidth = canvas.width / canvas.height * screenHeight
+  // }
+  // if (canvas.width < canvas.height) {
+  //   screenWidth = 100
+  //   screenHeight = canvas.height / canvas.width * screenWidth
+  // } else {
+  //   screenHeight = 100
+  //   screenWidth = canvas.width / canvas.height * screenHeight
+  // }
   screenHeight = canvas.height / canvas.width * screenWidth
+  // screenWidth = canvas.width / canvas.height * screenHeight
   // canvas.style.width = window.innerWidth + 'px'
   // canvas.style.height = window.innerHeight + 'px'
 }
@@ -495,11 +530,11 @@ function checkCollision(x1, w1, x2, w2, y1, h1, y2, h2) {
 }
 
 function canvasUnits(worldUnits) {
-  return Math.floor(worldUnits * canvas.width / screenWidth)
+  return Math.floor(worldUnits * canvas.width / 100)
 }
 
 function worldUnits(canvasUnits) {
-  return canvasUnits * screenWidth / canvas.width
+  return canvasUnits * 100 / canvas.width
 }
 
 // For some reason scrollbars will randomly appear on page load unless you init
