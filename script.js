@@ -1,8 +1,8 @@
 // const CANVAS_WIDTH = 640
 // const CANVAS_HEIGHT = 480
 
-let screenWidth = 100
-let screenHeight
+// let screenWidth = 100
+// let screenHeight
 
 const PLAYER_WIDTH = 10
 const PLAYER_HEIGHT = 10
@@ -180,7 +180,7 @@ function updateCanvasDimensions() {
   //   screenHeight = 100
   //   screenWidth = canvas.width / canvas.height * screenHeight
   // }
-  screenHeight = canvas.height / canvas.width * screenWidth
+  // screenHeight = canvas.height / canvas.width * screenWidth
   // screenWidth = canvas.width / canvas.height * screenHeight
   // canvas.style.width = window.innerWidth + 'px'
   // canvas.style.height = window.innerHeight + 'px'
@@ -199,8 +199,8 @@ function init() {
   window.addEventListener('touchend', onTouchEnd, {passive: false})
   window.addEventListener('touchcancel', onTouchEnd, {passive: false})
 
-  x = screenWidth / 2 - PLAYER_WIDTH / 2
-  y = screenHeight / 2 - PLAYER_HEIGHT / 2
+  x = worldUnits(canvas.width) / 2 - PLAYER_WIDTH / 2
+  y = worldUnits(canvas.height) / 2 - PLAYER_HEIGHT / 2
 
   requestAnimationFrame(update)
 }
@@ -307,25 +307,25 @@ function update(time) {
   }
 
   for (let [bulletIndex, bullet] of enemyBullets.entries()) {
-    if (bullet.y > screenHeight) {
+    if (bullet.y > worldUnits(canvas.height)) {
       deletedEnemyBulletIndices.add(bulletIndex)
     }
   }
 
   for (let [enemyIndex, enemy] of enemies.entries()) {
-    if (enemy.y > screenHeight) {
+    if (enemy.y > worldUnits(canvas.height)) {
       deletedEnemyIndices.add(enemyIndex)
     }
   }
 
   for (let [heartIndex, heart] of hearts.entries()) {
-    if (heart.y > screenHeight) {
+    if (heart.y > worldUnits(canvas.height)) {
       deletedHeartIndices.add(heartIndex)
     }
   }
 
   for (let [coinIndex, coin] of coins.entries()) {
-    if (coin.y > screenHeight) {
+    if (coin.y > worldUnits(canvas.height)) {
       deletedCoinIndices.add(coinIndex)
     }
   }
@@ -390,7 +390,7 @@ function update(time) {
   }
   if (bossSpawnTimer != null) {
     bossSpawnTimer.update(deltaTime, () => {
-      boss = new Boss(screenWidth / 2 - BOSS_WIDTH / 2, -BOSS_HEIGHT, BOSS_MAX_HEALTH)
+      boss = new Boss(worldUnits(canvas.width) / 2 - BOSS_WIDTH / 2, -BOSS_HEIGHT, BOSS_MAX_HEALTH)
       bossSpawnTimer = null
       numBossSpawns++
     })
@@ -442,8 +442,10 @@ function update(time) {
 }
 
 function onMouseMove(event) {
-  x = event.offsetX / canvas.clientWidth * screenWidth - PLAYER_WIDTH / 2
-  y = event.offsetY / canvas.clientHeight * screenHeight - PLAYER_HEIGHT / 2
+  x = worldUnits(event.offsetX) - PLAYER_WIDTH / 2
+  y = worldUnits(event.offsetY) - PLAYER_HEIGHT / 2
+  // x = event.offsetX / canvas.clientWidth * (screenWidth) - PLAYER_WIDTH / 2
+  // y = event.offsetY / canvas.clientHeight * (screenHeight) - PLAYER_HEIGHT / 2
 }
 
 const ongoingTouches = [];
@@ -464,8 +466,8 @@ function onTouchMove(event) {
     const ongoingTouchIndex = ongoingTouches.findIndex(ongoingTouch => ongoingTouch.identifier === touch.identifier)
     if (ongoingTouchIndex !== -1) {
       const ongoingTouch = ongoingTouches[ongoingTouchIndex]
-      x += (touch.clientX - ongoingTouch.clientX) / canvas.clientWidth * screenWidth
-      y += (touch.clientY - ongoingTouch.clientY) / canvas.clientHeight * screenHeight
+      x += worldUnits(touch.clientX - ongoingTouch.clientX)
+      y += worldUnits(touch.clientY - ongoingTouch.clientY)
       ongoingTouches.splice(ongoingTouchIndex, 1, copyTouch(touch))
     }
   }
@@ -499,7 +501,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 }
 
 function spawnEnemy() {
-  enemies.push(new Enemy(Math.random() * (screenWidth - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
+  enemies.push(new Enemy(Math.random() * (worldUnits(canvas.width) - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
 }
 
 function playerShoot(playerX, playerY) {
@@ -530,11 +532,11 @@ function checkCollision(x1, w1, x2, w2, y1, h1, y2, h2) {
 }
 
 function canvasUnits(worldUnits) {
-  return Math.floor(worldUnits * canvas.width / 100)
+  return Math.floor(worldUnits * canvasScale())
 }
 
 function worldUnits(canvasUnits) {
-  return canvasUnits * 100 / canvas.width
+  return canvasUnits / canvasScale()
 }
 
 // For some reason scrollbars will randomly appear on page load unless you init
