@@ -4,37 +4,40 @@
 // let screenWidth = 100
 // let screenHeight
 
-const PLAYER_WIDTH = 10
-const PLAYER_HEIGHT = 10
+const WORLD_TO_CANVAS = 1000
+
+const PLAYER_WIDTH = 100
+const PLAYER_HEIGHT = 100
 const PLAYER_MAX_HEALTH = 5
+const PLAYER_BULLET_SPEED = 500/1000
 
-const ENEMY_WIDTH = 10
-const ENEMY_HEIGHT = 10
-const ENEMY_SPEED = 1/100
-const ENEMY_FIRE_RATE = 2/3
+const ENEMY_WIDTH = 100
+const ENEMY_HEIGHT = 100
+const ENEMY_SPEED = 100/1000
+const ENEMY_FIRE_RATE = 1
 
-const BOSS_WIDTH = 20
-const BOSS_HEIGHT = 20
-const BOSS_SPEED = 1/200
+const BOSS_WIDTH = 200
+const BOSS_HEIGHT = 200
+const BOSS_SPEED = 50/1000
 const BOSS_MAX_HEALTH = 10
 const BOSS_FIRE_RATE = 3
-const BOSS_SHOOT_POSITION = 20
+const BOSS_SHOOT_POSITION = 150
 
 const BOSS_SPAWN_SCORE = 5
 
-const BULLET_WIDTH = 2
-const BULLET_HEIGHT = 2
-const BULLET_SPEED = 2/100
+const BULLET_WIDTH = 20
+const BULLET_HEIGHT = 20
+const BULLET_SPEED = 300/1000
 
-const HEART_WIDTH = 2
-const HEART_HEIGHT = 2
+const HEART_WIDTH = 20
+const HEART_HEIGHT = 20
 const HEART_COLOR = "crimson"
-const HEART_SPEED = 1/100
+const HEART_SPEED = 100/1000
 
-const COIN_WIDTH = 2
-const COIN_HEIGHT = 2
+const COIN_WIDTH = 20
+const COIN_HEIGHT = 20
 const COIN_COLOR = "gold"
-const COIN_SPEED = 1/100
+const COIN_SPEED = 100/1000
 
 class Timer {
   duration;
@@ -59,18 +62,67 @@ class Timer {
   }
 }
 
+function shoot(deltaTime) {
+	let shooting = false
+	let shotsFired = 0
+	let shootTimer = new Timer(1000, () => {
+		shotsFired++
+		if (shotsFired == 3) {
+			shotsFired = 0
+			shooting = false
+		}
+	})
+	let beginShootTimer = new Timer(1000)
+	
+	if (shooting) {
+		shootTimer.update(deltaTime)
+	}
+	beginShootTimer.update(deltaTime, () => {
+		shooting = true
+		beginShootTimer.duration = 5000
+	})
+}
+
 class Enemy {
   x;
   y;
   health;
   shootTimer;
+	shooting;
+	shotsFired;
+	beginShootTimer;
 
-  constructor(x, y, health, shootTimer) {
-    this.x = x;
-    this.y = y;
-    this.health = health;
-    this.shootTimer = shootTimer;
+  constructor(x, y, health) {
+    this.x = x
+    this.y = y
+    this.health = health
+    this.shootTimer = new Timer(1000 / ENEMY_FIRE_RATE)
+		this.shooting = false
+		this.shotsFired = 0
+	  this.beginShootTimer = new Timer(1000)
   }
+
+	updateShooting(deltaTime, enemyBullets) {
+	  if (this.shooting) {
+  		this.shootTimer.update(deltaTime, () => {
+        enemyBullets.push(new Bullet(
+          this.x + ENEMY_WIDTH / 2 - BULLET_WIDTH / 2,
+          this.y + ENEMY_HEIGHT
+        ))
+	    	this.shotsFired++
+    		if (this.shotsFired == 3) {
+		    	this.shotsFired = 0
+	    		this.shooting = false
+	    	}
+    	})
+  	} else {
+
+	    this.beginShootTimer.update(deltaTime, () => {
+    		this.shooting = true
+		  	//this.beginShootTimer.duration = 5000
+    	})
+		}
+	}
 }
 
 class Boss {
@@ -145,9 +197,9 @@ let playerShootTimer = new Timer(600)
 
 function canvasScale() {
   if (canvas.width * 1.6 < canvas.height) {
-    return canvas.width * 1.6 / 100
+    return canvas.width * 1.6 / WORLD_TO_CANVAS
   } else {
-    return canvas.height / 100
+    return canvas.height / WORLD_TO_CANVAS
   }
 }
 
@@ -214,7 +266,7 @@ function update(time) {
   }
 
   for (let bullet of playerBullets) {
-    bullet.y -= BULLET_SPEED * deltaTime
+    bullet.y -= PLAYER_BULLET_SPEED * deltaTime
   }
 
   for (let bullet of enemyBullets) {
@@ -239,22 +291,26 @@ function update(time) {
   }
 
   let deletedHeartIndices = new Set()
-  for (let [heartIndex, heart] of hearts.entries()) {
-    if (checkCollision(heart.x, HEART_WIDTH, x, PLAYER_WIDTH, heart.y, HEART_HEIGHT, y, PLAYER_HEIGHT)) {
-      if (playerHealth < PLAYER_MAX_HEALTH) {
-        playerHealth += 1
-        deletedHeartIndices.add(heartIndex)
+	if (playerHealth > 0) {
+    for (let [heartIndex, heart] of hearts.entries()) {
+      if (checkCollision(heart.x, HEART_WIDTH, x, PLAYER_WIDTH, heart.y, HEART_HEIGHT, y, PLAYER_HEIGHT)) {
+        if (playerHealth < PLAYER_MAX_HEALTH) {
+          playerHealth += 1
+          deletedHeartIndices.add(heartIndex)
+        }
       }
     }
-  }
+	}
 
   let deletedCoinIndices = new Set()
-  for (let [coinIndex, coin] of coins.entries()) {
-    if (checkCollision(coin.x, COIN_WIDTH, x, PLAYER_WIDTH, coin.y, COIN_HEIGHT, y, PLAYER_HEIGHT)) {
-      playerCoins += 1
-      deletedCoinIndices.add(coinIndex)
+	if (playerHealth > 0) {
+  	for (let [coinIndex, coin] of coins.entries()) {
+      if (checkCollision(coin.x, COIN_WIDTH, x, PLAYER_WIDTH, coin.y, COIN_HEIGHT, y, PLAYER_HEIGHT)) {
+        playerCoins += 1
+        deletedCoinIndices.add(coinIndex)
+      }
     }
-  }
+	}
 
   let deletedEnemyIndices = new Set()
   let deletedPlayerBulletIndices = new Set()
@@ -293,12 +349,14 @@ function update(time) {
   }
 
   let deletedEnemyBulletIndices = new Set()
-  for (let [bulletIndex, bullet] of enemyBullets.entries()) {
-    if (checkCollision(bullet.x, BULLET_WIDTH, x, PLAYER_WIDTH, bullet.y, BULLET_HEIGHT, y, PLAYER_HEIGHT)) {
-      deletedEnemyBulletIndices.add(bulletIndex)
-      playerHealth = Math.max(0, playerHealth - 1)
+	if (playerHealth > 0) {
+    for (let [bulletIndex, bullet] of enemyBullets.entries()) {
+      if (checkCollision(bullet.x, BULLET_WIDTH, x, PLAYER_WIDTH, bullet.y, BULLET_HEIGHT, y, PLAYER_HEIGHT)) {
+        deletedEnemyBulletIndices.add(bulletIndex)
+        playerHealth = Math.max(0, playerHealth - 1)
+      }
     }
-  }
+	}
 
   for (let [bulletIndex, bullet] of playerBullets.entries()) {
     if (bullet.y + BULLET_HEIGHT < 0) {
@@ -354,7 +412,8 @@ function update(time) {
     playerShootTimer.update(deltaTime, () => playerShoot(x, y))
   }
   for (let enemy of enemies) {
-    enemy.shootTimer.update(deltaTime, () => enemyShoot(enemy.x, enemy.y))
+    //enemy.shootTimer.update(deltaTime, () => enemyShoot(enemy.x, enemy.y))
+		enemy.updateShooting(deltaTime, enemyBullets)
   }
   if (playerHealth > 0) {
     spawnEnemyTimer.update(deltaTime, () => {
@@ -433,9 +492,28 @@ function update(time) {
     ctx.fillRect(canvasUnits(boss.x), canvasUnits(boss.y), canvasUnits(BOSS_WIDTH), canvasUnits(BOSS_HEIGHT))
   }
 
+	ctx.font = "10px sans-serif"
   ctx.fillText("Score: " + score, 2, 10)
   ctx.fillText("Health: " + playerHealth, 2, 20)
   ctx.fillText("Coins: " + playerCoins, 2, 30)
+	
+	//if (playerHealth === 0) {
+		const text = "Game over"
+	  ctx.font = "40px sans-serif"
+		const width = ctx.measureText(text).width
+		ctx.fillText(
+			text,
+			canvas.width / 2 - width / 2,
+			canvas.height / 2,
+		)
+	  const playButtonText = "Play"
+	  const width = ctx.measureText(playButtonText).width
+	  ctx.fillText(
+			playButtonText,
+			canvas.width / 2 - width / 2,
+			canvas.height / 2 + 40
+		)
+	//}
   
   prevTime = time
   requestAnimationFrame(update)
@@ -501,7 +579,7 @@ function copyTouch({ identifier, clientX, clientY }) {
 }
 
 function spawnEnemy() {
-  enemies.push(new Enemy(Math.random() * (worldUnits(canvas.width) - ENEMY_WIDTH), -ENEMY_HEIGHT, 3, new Timer(1000 / ENEMY_FIRE_RATE)))
+  enemies.push(new Enemy(Math.random() * (worldUnits(canvas.width) - ENEMY_WIDTH), -ENEMY_HEIGHT, 3))
 }
 
 function playerShoot(playerX, playerY) {
